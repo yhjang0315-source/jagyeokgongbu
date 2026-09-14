@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>자격공부</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2B4C9B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="자격공부">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<meta property="og:title" content="자격공부">
+<meta property="og:description" content="하루 5분, 전문 자격을 게임처럼">
+<meta property="og:image" content="icons/cover.png">
+</head>
+<body>
+<div class="splash" id="splash" aria-hidden="true"><img src="icons/icon-512.png" alt=""><b>자격공부</b><span>하루 5분, 전문 자격을 게임처럼</span></div>
+<div class="app" id="app">
+
+  <section class="screen" id="s-home">
+    <header class="topbar">
+      <div class="brand"><img class="brand-logo" src="icons/icon-192.png" alt="" width="30" height="30"><h1 id="brand-name">자격공부</h1><small id="brand-sub">전문 자격 학습</small></div>
+      <div class="stats">
+        <span class="stat streak" title="연속 학습일"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 4 5 4 9a4 4 0 0 1-8 0c0-1 .3-2 .8-2.7C9 10 10 11 11 11c0-3-1-5 1-9zm-5 12a5 5 0 0 0 10 0c0-1.5-.5-3-1.5-4.2C15 12 14 13 13 13c1-4-1-6-2-8-1 2-4 4-4 9z"/></svg><span id="st-streak">0</span></span>
+        <span class="stat xp" title="경험치"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6L22 9.3l-5.4 4.8L18.2 21 12 17.3 5.8 21l1.6-6.9L2 9.3l7.1-.7z"/></svg><span id="st-xp">0</span> XP</span>
+      </div>
+    </header>
+
+    <div id="tab-learn">
+      <div class="picker">
+        <div class="lbl lbl-row"><span>분야</span><label class="mini-toggle"><span>여러 분야 함께</span><button class="switch sm" id="multi-field" role="switch" aria-checked="false" aria-label="여러 분야 함께 선택"></button></label></div>
+        <div class="fields" id="seg-field"></div>
+        <div class="lbl">학습 카테고리 <small>(선택한 분야에 있는 것만 · 여러 개 선택 가능)</small></div>
+        <div class="seg" id="seg-cat"></div>
+        <div class="lbl" id="lbl-course">영역</div>
+        <div class="fields" id="seg-course"></div>
+        <div class="lbl" id="lbl-level">난이도</div>
+        <div class="seg" id="seg-level">
+          <button data-level="0">입문</button><button data-level="1">실무</button><button data-level="2">시험</button>
+        </div>
+        <p class="desc" id="course-desc"></p>
+      </div>
+      <div class="goal">
+        <div class="row"><b>오늘의 목표</b><span><span id="goal-now">0</span> / <span id="goal-max">50</span> XP</span></div>
+        <div class="bar gold"><i id="goal-bar" style="width:0%"></i></div>
+      </div>
+      <div class="path" id="path"></div>
+    </div>
+
+    <div id="tab-review" class="page" hidden>
+      <h2>복습</h2>
+      <p class="lead">완료한 레슨에서 문제를 골라 다시 풀어요. 틀린 문제는 다시 나옵니다.</p>
+      <div class="kpis">
+        <div class="kpi"><b id="rv-done">0</b><span>완료 레슨</span></div>
+        <div class="kpi"><b id="rv-acc">–</b><span>정답률</span></div>
+        <div class="kpi"><b id="rv-total">0</b><span>푼 문제</span></div>
+      </div>
+      <div class="stack">
+        <button class="big-btn" id="btn-review">복습 10문제 시작</button>
+        <button class="big-btn ghost" id="btn-hard">자주 틀린 문제만 풀기</button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>복습 방식</h3>
+        <p>틀린 적이 있는 문제가 먼저 나오고, 나머지는 완료한 레슨에서 무작위로 섞입니다. 모든 트랙과 난이도에서 골고루 출제돼요.</p>
+      </div>
+    </div>
+
+    <div id="tab-terms" class="page" hidden>
+      <h2>용어 사전</h2>
+      <p class="lead" id="terms-lead">레슨에 나오는 핵심 용어를 한 줄로 정리했어요.</p>
+      <input class="search" id="term-q" placeholder="용어 검색 (예: 확정일자, DSR)" type="search">
+      <div class="filters" id="term-filters"><button data-lv="0" class="on">전체</button><button data-lv="1">입문</button><button data-lv="2">실무</button><button data-lv="3">시험</button></div>
+      <div id="term-list"></div>
+    </div>
+
+    <div id="tab-guide" class="page" hidden>
+      <h2>현장 가이드</h2>
+      <p class="lead" id="guide-lead">실무에서 바로 꺼내 쓰는 정보. 체크 표시는 이 기기에 저장돼요.</p>
+      <div class="compass-card" id="compass-card">
+        <svg class="compass" viewBox="0 0 120 120" role="img" aria-label="남향 범위 나침반">
+          <circle cx="60" cy="60" r="54" class="cring"/>
+          <path d="M60 60 L21.8 98.2 A54 54 0 0 0 98.2 98.2 Z" class="csouth"/>
+          <line x1="60" y1="6" x2="60" y2="16" class="ctick"/><line x1="114" y1="60" x2="104" y2="60" class="ctick"/><line x1="60" y1="114" x2="60" y2="104" class="ctick"/><line x1="6" y1="60" x2="16" y2="60" class="ctick"/>
+          <text x="60" y="28" class="clbl">N</text><text x="94" y="64" class="clbl">E</text><text x="60" y="98" class="clbl on">S</text><text x="26" y="64" class="clbl">W</text>
+          <polygon points="60,60 55,40 60,22 65,40" class="cneedle"/>
+        </svg>
+        <div>
+          <b>남향 판단 기준</b>
+          <p>거실 큰 창 앞에서 창 밖을 향해 나침반 앱을 보세요. 방위각 <em>135°~225°</em>면 남향(정남 180°). 금속 창틀에서 한 걸음 떨어져 두 번 재세요.</p>
+          <div class="dirs"><span>남동 112~157°</span><span>남 157~202°</span><span>남서 202~247°</span><span>동 90°</span><span>서 270°</span><span>북 0°</span></div>
+        </div>
+      </div>
+      <div class="filters" id="guide-nav"></div>
+      <div id="guide-list"></div>
+      <button class="big-btn ghost" id="guide-reset" style="margin-top:14px">체크 표시 모두 지우기</button>
+    </div>
+
+    <div id="tab-settings" class="page" hidden>
+      <h2>설정</h2>
+      <p class="lead">학습 방식을 내 상황에 맞게 바꿉니다. 트랙과 난이도는 홈에서 언제든 바꿀 수 있고, 어떤 레슨이든 바로 시작할 수 있어요.</p>
+      <div class="card">
+        <div class="setting"><div><b>하루 목표</b><small>오늘 채울 XP</small></div><select id="set-goal"><option value="30">30 XP</option><option value="50">50 XP</option><option value="100">100 XP</option><option value="200">200 XP</option></select></div>
+        <div class="setting"><div><b>레슨 색 안내</b><small><span class="lv lv1">초록</span> 완료한 레슨 · <span class="lv violet">보라</span> 문제를 한 번에 전부 맞힌 레슨 · 점선 테두리는 중간에 나와서 이어서 할 수 있는 레슨</small></div></div>
+        <div class="setting"><div><b>히든 퀘스트</b><small>한 분야의 한 카테고리(예: 용어 학습) 레슨을 전부 완료하면 홈 경로 맨 아래에 그 카테고리 전범위 퀴즈(20문제 이상)가 나타나요. 틀린 적 있는 문제가 먼저 섞입니다.</small></div></div>
+        <div class="setting"><div><b>레슨 순서대로 잠금</b><small>기본은 꺼짐. 켜면 앞 레슨을 끝내야 다음이 열려요</small></div><button class="switch" id="set-lock" role="switch" aria-checked="false" aria-label="레슨 잠금"></button></div>
+        <div class="setting"><div><b>핵심 개념 카드 보기</b><small>레슨 시작 전 개념 설명을 건너뛰려면 끄세요</small></div><button class="switch" id="set-tips" role="switch" aria-checked="true" aria-label="핵심 개념 카드"></button></div>
+      </div>
+      <div class="card" style="margin-top:12px" id="acct-card">
+        <h3>계정 · 기기 간 동기화</h3>
+        <p class="lead" style="margin:4px 0 10px">닉네임과 PIN으로 계정을 만들면 다른 기기에서도 같은 진행 상황을 이어갑니다. PIN은 4자리 이상. 닉네임과 PIN을 아는 사람은 누구나 접근할 수 있으니 짐작하기 어려운 값을 쓰세요.</p>
+        <div id="acct-form">
+          <div class="row2"><input id="acct-nick" class="search" placeholder="닉네임" autocomplete="username" maxlength="24"><input id="acct-pin" class="search" placeholder="PIN (숫자·문자 4자 이상)" type="password" autocomplete="current-password" maxlength="32"></div>
+          <button class="big-btn" id="acct-login">로그인 또는 새 계정 만들기</button>
+          <p class="hint" id="acct-msg"></p>
+        </div>
+        <div id="acct-on" hidden>
+          <div class="setting"><div><b id="acct-name">닉네임</b><small id="acct-status">동기화됨</small></div><button class="big-btn ghost slim" id="acct-sync">지금 동기화</button></div>
+          <button class="danger" id="acct-logout">로그아웃 (이 기기 기록은 남습니다)</button>
+        </div>
+        <div id="acct-code" hidden>
+          <p class="hint">이 버전은 서버 동기화가 없어 <b>동기화 코드</b>로 옮깁니다. 아래 코드를 복사해 다른 기기의 설정에서 붙여넣으세요.</p>
+          <div class="row2"><button class="big-btn ghost slim" id="code-export">내 진행 코드 복사</button><button class="big-btn ghost slim" id="code-import">코드 붙여넣어 불러오기</button></div>
+          <textarea id="code-box" class="search" rows="3" placeholder="동기화 코드"></textarea>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px" id="install-card">
+        <h3>앱처럼 설치하기</h3>
+        <p class="lead" style="margin:4px 0 10px">홈 화면·바탕화면에 추가하면 아이콘으로 바로 열리고 오프라인에서도 학습할 수 있어요.</p>
+        <button class="big-btn" id="btn-install" hidden>이 기기에 설치</button>
+        <p class="hint" id="install-hint">아이폰: Safari 공유 버튼 → "홈 화면에 추가". 안드로이드: Chrome 메뉴 ⋮ → "앱 설치" 또는 "홈 화면에 추가". 노트북: Chrome·Edge 주소창 오른쪽 설치 아이콘.</p>
+      </div>
+      <div class="card" style="margin-top:12px" id="explain-card">
+        <h3>더 자세히 설명 (AI)</h3>
+        <p class="lead" style="margin:4px 0 10px">개념 카드, 문제 해설, 사전 용어에 있는 <b>더 자세히</b> 버튼을 누르면 Claude가 쉬운 말과 예시로 다시 설명합니다.</p>
+        <p class="hint" id="explain-status"></p>
+        <div id="apikey-wrap"><input id="apikey" class="search" placeholder="Anthropic API 키 (sk-ant-…)" type="password" autocomplete="off"><p class="hint">키는 이 기기 브라우저에만 저장되고 Anthropic API로 직접 전송됩니다. 사용량은 본인 계정에 과금됩니다.</p></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>난이도 안내</h3>
+        <p><span class="lv lv1">입문</span> 부동산을 처음 접하는 사람. 대화와 뉴스가 이해되는 수준.<br><span class="lv lv2">실무</span> 실제로 집을 계약하고 대출받고 세금을 낼 때 필요한 지식.<br><span class="lv lv3">시험</span> 해당 분야 자격시험(공인중개사·세무사·노무사·법무사·행정사 등) 수준.<br><br>기출 유형 카테고리는 난이도 대신 <b>1차 · 2차 · 종합모의</b>로 나뉩니다. 실제 시험 형식(5지선다, "옳지 않은 것은?")을 본뜬 자체 제작 문제입니다.</p>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <button class="danger" id="set-reset">학습 기록 모두 지우기</button>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      <button class="on" data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>학습</button>
+      <button data-tab="review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>복습</button>
+      <button data-tab="terms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 0-3 3z"/><path d="M4 4v16"/><path d="M8 8h7M8 12h7"/></svg>사전</button>
+      <button data-tab="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>현장</button>
+      <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>설정</button>
+    </nav>
+  </section>
+
+  <section class="screen" id="s-lesson" hidden>
+    <div class="lesson-top">
+      <button class="x" id="btn-quit" aria-label="나가기 (진행 상황 저장)" title="나가기 · 진행 상황이 저장됩니다"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="bar"><i id="l-bar" style="width:0%"></i></div>
+      <span class="count" id="l-count"></span>
+    </div>
+    <div class="qwrap" id="qwrap"></div>
+    <div class="sheet" id="sheet">
+      <div class="fb" id="fb" hidden><div class="ico" id="fb-ico"></div><div><b id="fb-title"></b><p id="fb-text"></p></div></div>
+      <button class="big-btn" id="btn-main" disabled>확인</button>
+    </div>
+  </section>
+
+  <div class="xpanel" id="xpanel" hidden>
+    <div class="xbox">
+      <div class="xhead"><div><div class="eyebrow">더 자세히</div><h3 id="x-title"></h3></div><button class="x" id="x-close" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="xbody" id="x-body"></div>
+      <div class="xfoot"><button class="chip" data-x="예시">예시 하나 더</button><button class="chip" data-x="비유">비유로 설명</button><button class="chip" data-x="시험">시험 포인트</button><button class="chip" data-x="관련">관련 용어</button></div>
+    </div>
+  </div>
+
+  <section class="screen" id="s-result" hidden>
+    <div class="result">
+      <div class="stamp"><div><div class="big" id="r-stamp">완료</div><div class="sm" id="r-brand">자격공부</div></div></div>
+      <h2 id="r-title">레슨 완료</h2>
+      <p class="lead" id="r-lead"></p>
+      <div class="kpis">
+        <div class="kpi"><b id="r-xp">0</b><span>획득 XP</span></div>
+        <div class="kpi"><b id="r-acc">0%</b><span>정답률</span></div>
+        <div class="kpi"><b id="r-n">0</b><span>문제 수</span></div>
+      </div>
+    </div>
+    <div class="sheet"><button class="big-btn" id="btn-home">계속</button></div>
+  </section>
+</div>
+<script src="content/terms.js"></script>
+<script src="content/calc.js"></script>
+<script src="content/law.js"></script>
+<script src="content/exam.js"></script>
+<script src="content/glossary.js"></script>
+<script src="content/guide.js"></script>
+<script src="content/realestate.js"></script>
+<!-- 분야 파일. 각 분야는 별도 PR로 추가되며, 파일이 없으면 해당 분야만 표시되지 않습니다. -->
+<script src="content/tax.js"></script>
+<script src="content/labor.js"></script>
+<script src="content/judicial.js"></script>
+<script src="content/admin.js"></script>
+<script src="content/cpa.js"></script>
+<script src="content/patent.js"></script>
+<script src="content/appraiser.js"></script>
+<script src="content/forensic.js"></script>
+<script src="app.js"></script>
+<script>
+// PWA 서비스워커 등록. file:// 로 열었을 때는 건너뜀.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
