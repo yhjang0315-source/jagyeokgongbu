@@ -459,7 +459,7 @@ const GH_TOKEN_URL='https://github.com/settings/tokens/new?scopes=gist&descripti
 async function getDb(){ if(dbTried)return dbNs; dbTried=true; try{ if(window.claude&&typeof window.claude.use==='function')dbNs=await window.claude.use('db'); }catch(e){dbNs=null;} return dbNs; }
 async function sha256(str){ const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
 function provider(){ return acct?acct.kind:null; }
-function acctDoc(){ return dbNs.doc('accounts/'+acct.id); }
+function acctDoc(){ return dbNs.doc(acct.kind==='auto'?'sync/progress':'accounts/'+acct.id); }
 function snapshot(){ const s={...S}; delete s.pick; return {nick:acct?acct.nick:'',state:s,guide:G,updatedAt:Date.now()}; }
 function mergeState(remote){
   if(!remote||!remote.state)return;
@@ -500,11 +500,11 @@ async function ghPull(){
 }
 async function ghPush(){ await gh('/gists/'+acct.gist,{method:'PATCH',body:JSON.stringify({files:{[GH_FILE]:{content:JSON.stringify(snapshot())}}})}); }
 /* ---- 공통 ---- */
-async function cloudPush(){ if(!acct||syncing)return; if(acct.kind==='db'&&!dbNs)return; syncing=true;
-  try{ if(acct.kind==='db')await acctDoc().set(snapshot()); else await ghPush(); setAcctStatus('동기화됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})); }
+async function cloudPush(){ if(!acct||syncing)return; if((acct.kind==='db'||acct.kind==='auto')&&!dbNs)return; syncing=true;
+  try{ if(acct.kind==='db'||acct.kind==='auto')await acctDoc().set(snapshot()); else await ghPush(); setAcctStatus('동기화됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})); }
   catch(e){ setAcctStatus('동기화 실패: '+(e.message||e.code||'')); } syncing=false; }
 async function cloudPull(){ if(!acct)return false;
-  try{ let ok=false; if(acct.kind==='db'){ if(!dbNs)return false; const snap=await acctDoc().get(); if(snap.exists){mergeState(snap.data());ok=true;} } else ok=await ghPull();
+  try{ let ok=false; if(acct.kind==='db'||acct.kind==='auto'){ if(!dbNs)return false; const snap=await acctDoc().get(); if(snap.exists){mergeState(snap.data());ok=true;} } else ok=await ghPull();
     if(ok)localStorage.setItem(KEY,JSON.stringify(S)); return ok; }
   catch(e){ setAcctStatus('불러오기 실패: '+(e.message||e.code||'')); } return false; }
 function cloudTouch(){ if(!acct)return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush,1500); }
@@ -512,6 +512,15 @@ function setAcctStatus(t){ const el=$('#acct-status'); if(el)el.textContent=t; }
 function rerenderAll(){ renderStats();renderPicker();renderPath();renderReview();renderGuide(); }
 function renderAcct(){
   const hasDb=!!dbNs;
+  if(acct&&acct.kind==='auto'){
+    ['#acct-form','#acct-gh','#acct-link','#acct-code'].forEach(x=>$(x).hidden=true);
+    $('#acct-on').hidden=false; $('#acct-logout').hidden=true;
+    $('#acct-name').textContent='이 Claude 계정에 자동 저장';
+    const lead=document.querySelector('#acct-card .lead'); if(lead)lead.textContent='로그인할 필요 없어요. 이 앱은 본인만 열 수 있어서, 같은 Claude 계정으로 로그인한 휴대폰·노트북이 같은 진행 상황을 자동으로 이어갑니다.';
+    document.querySelector('.stat.acct')?.remove();
+    return;
+  }
+  $('#acct-logout').hidden=false;
   $('#acct-form').hidden=!hasDb||!!acct;
   $('#acct-gh').hidden=hasDb||!!acct;
   $('#acct-on').hidden=!acct;
@@ -573,7 +582,15 @@ $('#code-import').addEventListener('click',()=>{try{const obj=JSON.parse(decodeU
   // 연결 링크(#connect=토큰)로 열린 경우 자동 로그인 후 주소에서 토큰 제거
   const m=location.hash.match(/connect=([A-Za-z0-9+/=]+)/);
   if(m&&!dbNs){ let tok='';try{tok=atob(m[1]);}catch(e){} history.replaceState(null,'',location.pathname+location.search); if(tok){ document.querySelector('.tabs button[data-tab="settings"]')?.click(); await ghLogin(tok); return; } }
-  try{const r=localStorage.getItem('jipgongbu_acct');if(r){const a=JSON.parse(r);if(!a.kind)a.kind='db';if((a.kind==='db'&&dbNs)||a.kind==='gh'){acct=a;await cloudPull();rerenderAll();}}}catch(e){}
+  if(dbNs){
+    // 아티팩트: 본인 전용이므로 로그인 없이 자동 동기화. 예전에 닉네임 계정을 썼다면 그 기록도 한 번 합침.
+    try{const r=localStorage.getItem('jipgongbu_acct');if(r){const a=JSON.parse(r);if(a&&a.id&&(a.kind==='db'||!a.kind)){acct={kind:'db',id:a.id,nick:a.nick};await cloudPull();}}}catch(e){}
+    acct={kind:'auto',nick:''};
+    const had=await cloudPull(); rerenderAll(); await cloudPush();
+    renderAcct(); setAcctStatus(had?'동기화됨 · 다른 기기 기록을 합쳤어요':'동기화됨');
+    return;
+  }
+  try{const r=localStorage.getItem('jipgongbu_acct');if(r){const a=JSON.parse(r);if(a.kind==='gh'){acct=a;await cloudPull();rerenderAll();}}}catch(e){}
   renderAcct(); if(acct)setAcctStatus('동기화됨');
 })();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&acct)cloudPull().then(ok=>{if(ok)rerenderAll();});});

@@ -1,5 +1,5 @@
 // 오프라인 캐시. 배포 시 버전이 바뀌면 이전 캐시를 지우고 새 파일을 받습니다.
-const VERSION = 'v20260915094548';
+const VERSION = 'v20260915101031';
 const ASSETS = ['./','./index.html','./style.css','./app.js','./vendor/qrcode.min.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/favicon-64.png','./icons/cover.png',
   './content/terms.js','./content/calc.js','./content/law.js','./content/exam.js','./content/glossary.js','./content/guide.js','./content/realestate.js',
   './content/tax.js','./content/labor.js','./content/judicial.js','./content/admin.js','./content/cpa.js','./content/patent.js','./content/appraiser.js','./content/forensic.js'];
