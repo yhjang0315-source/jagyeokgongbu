@@ -30,6 +30,12 @@
       </div>
     </header>
 
+    <div class="install-banner" id="install-banner" hidden>
+      <img src="icons/icon-192.png" alt="" width="40" height="40">
+      <div><b>자격공부 앱 설치</b><small id="ib-text">홈 화면에 추가하면 앱처럼 바로 열려요</small></div>
+      <button class="big-btn slim" id="ib-go">설치</button>
+      <button class="x" id="ib-close" aria-label="닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
     <div id="tab-learn">
       <div class="picker">
         <div class="lbl lbl-row"><span>분야</span><label class="mini-toggle"><span>여러 분야 함께</span><button class="switch sm" id="multi-field" role="switch" aria-checked="false" aria-label="여러 분야 함께 선택"></button></label></div>
@@ -121,8 +127,23 @@
           <div class="setting"><div><b id="acct-name">닉네임</b><small id="acct-status">동기화됨</small></div><button class="big-btn ghost slim" id="acct-sync">지금 동기화</button></div>
           <button class="danger" id="acct-logout">로그아웃 (이 기기 기록은 남습니다)</button>
         </div>
+        <div id="acct-gh" hidden>
+          <p class="hint" style="margin-top:0"><b>GitHub 계정으로 로그인</b>합니다. 진행 상황이 본인 GitHub의 비공개 Gist 하나에 저장되어 휴대폰·노트북이 같은 기록을 씁니다. 처음 한 번만 토큰을 만들면 됩니다.</p>
+          <ol class="steps">
+            <li><button class="big-btn ghost slim" id="gh-token-link" type="button">1. GitHub 토큰 만들기 (새 창)</button><small>열린 페이지 맨 아래 <b>Generate token</b>을 누르고 나온 <b>ghp_…</b> 값을 복사하세요. 권한은 gist 하나만 체크되어 있습니다.</small></li>
+            <li><input id="gh-token" class="search" placeholder="2. 복사한 토큰 붙여넣기 (ghp_…)" type="password" autocomplete="off" spellcheck="false"></li>
+          </ol>
+          <button class="big-btn" id="gh-login">3. 로그인</button>
+          <p class="hint" id="gh-msg"></p>
+        </div>
+        <div id="acct-link" hidden>
+          <h4 class="sub-h">휴대폰·다른 기기 연결</h4>
+          <p class="hint">다른 기기 카메라로 아래 QR을 찍으면 앱이 열리면서 같은 계정으로 자동 로그인됩니다. QR에는 로그인 토큰이 들어 있으니 다른 사람에게 보여주지 마세요.</p>
+          <div class="qr-wrap"><button class="big-btn ghost slim" id="link-show">연결 QR 보기</button><div id="link-qr" hidden></div></div>
+          <div class="row2"><button class="big-btn ghost slim" id="link-copy" hidden>연결 링크 복사</button></div>
+        </div>
         <div id="acct-code" hidden>
-          <p class="hint">이 버전은 서버 동기화가 없어 <b>동기화 코드</b>로 옮깁니다. 아래 코드를 복사해 다른 기기의 설정에서 붙여넣으세요.</p>
+          <p class="hint">로그인 없이 옮기려면 <b>동기화 코드</b>를 복사해 다른 기기의 설정에서 붙여넣으세요.</p>
           <div class="row2"><button class="big-btn ghost slim" id="code-export">내 진행 코드 복사</button><button class="big-btn ghost slim" id="code-import">코드 붙여넣어 불러오기</button></div>
           <textarea id="code-box" class="search" rows="3" placeholder="동기화 코드"></textarea>
         </div>
@@ -131,6 +152,7 @@
         <h3>앱처럼 설치하기</h3>
         <p class="lead" style="margin:4px 0 10px">홈 화면·바탕화면에 추가하면 아이콘으로 바로 열리고 오프라인에서도 학습할 수 있어요.</p>
         <button class="big-btn" id="btn-install" hidden>이 기기에 설치</button>
+        <div class="qr-wrap"><div id="site-qr"></div><small>휴대폰 카메라로 찍으면 설치 페이지가 열려요</small></div>
         <p class="hint" id="install-hint">아이폰: Safari 공유 버튼 → "홈 화면에 추가". 안드로이드: Chrome 메뉴 ⋮ → "앱 설치" 또는 "홈 화면에 추가". 노트북: Chrome·Edge 주소창 오른쪽 설치 아이콘.</p>
       </div>
       <div class="card" style="margin-top:12px" id="explain-card">
@@ -208,6 +230,7 @@
 <script src="content/patent.js"></script>
 <script src="content/appraiser.js"></script>
 <script src="content/forensic.js"></script>
+<script src="vendor/qrcode.min.js"></script>
 <script src="app.js"></script>
 <script>
 // PWA 서비스워커 등록. file:// 로 열었을 때는 건너뜀.

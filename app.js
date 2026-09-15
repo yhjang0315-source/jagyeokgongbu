@@ -450,11 +450,17 @@ async function renderExplainStatus(){
 renderExplainStatus();
 
 /* ===================== 계정 · 기기 간 동기화 ===================== */
+/* 저장소 두 가지:
+   1) claude.ai 아티팩트 안: db 기능 (닉네임+PIN)
+   2) 배포 사이트(github.io 등): 본인 GitHub 비공개 Gist (토큰 로그인) */
 let dbNs=null, dbTried=false, acct=null, cloudTimer=null, syncing=false;
+const GH_FILE='jagyeokgongbu-sync.json';
+const GH_TOKEN_URL='https://github.com/settings/tokens/new?scopes=gist&description='+encodeURIComponent('자격공부 동기화');
 async function getDb(){ if(dbTried)return dbNs; dbTried=true; try{ if(window.claude&&typeof window.claude.use==='function')dbNs=await window.claude.use('db'); }catch(e){dbNs=null;} return dbNs; }
 async function sha256(str){ const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function provider(){ return acct?acct.kind:null; }
 function acctDoc(){ return dbNs.doc('accounts/'+acct.id); }
-function snapshot(){ const s={...S}; delete s.pick; return {nick:acct.nick,state:s,guide:G,updatedAt:Date.now()}; }
+function snapshot(){ const s={...S}; delete s.pick; return {nick:acct?acct.nick:'',state:s,guide:G,updatedAt:Date.now()}; }
 function mergeState(remote){
   if(!remote||!remote.state)return;
   const r=remote.state;
@@ -466,42 +472,111 @@ function mergeState(remote){
   if(r.dayKey===S.dayKey)S.todayXp=Math.max(S.todayXp,r.todayXp||0);
   if(remote.guide){Object.assign(G.checks,remote.guide.checks||{});gsave();}
 }
-async function cloudPush(){ if(!acct||!dbNs||syncing)return; syncing=true; try{ await acctDoc().set(snapshot()); setAcctStatus('동기화됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})); }catch(e){ setAcctStatus('동기화 실패: '+(e.message||e.code||'')); } syncing=false; }
-async function cloudPull(){ if(!acct||!dbNs)return false; try{ const snap=await acctDoc().get(); if(snap.exists){ mergeState(snap.data()); localStorage.setItem(KEY,JSON.stringify(S)); return true; } }catch(e){ setAcctStatus('불러오기 실패: '+(e.message||e.code||'')); } return false; }
-function cloudTouch(){ if(!acct||!dbNs)return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush,1500); }
+/* ---- GitHub Gist ---- */
+async function gh(path,opt={}){
+  const res=await fetch('https://api.github.com'+path,{...opt,headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+acct.token,'X-GitHub-Api-Version':'2022-11-28',...(opt.body?{'Content-Type':'application/json'}:{})}});
+  if(res.status===401)throw new Error('토큰이 만료되었거나 잘못됐어요. 다시 로그인하세요.');
+  if(res.status===403||res.status===404){const t=await res.text();throw new Error('권한 오류: 토큰에 gist 권한이 있는지 확인하세요. ('+res.status+') '+t.slice(0,80));}
+  if(!res.ok)throw new Error('GitHub 오류 '+res.status);
+  return res.status===204?null:res.json();
+}
+async function ghFindGist(){
+  for(let page=1;page<=5;page++){
+    const list=await gh('/gists?per_page=100&page='+page);
+    const hit=list.find(g=>g.files&&g.files[GH_FILE]);
+    if(hit){acct.fresh=false;return hit.id;}
+    if(list.length<100)break;
+  }
+  acct.fresh=true;
+  const created=await gh('/gists',{method:'POST',body:JSON.stringify({description:'자격공부 학습 진행 상황 (앱이 자동 관리)',public:false,files:{[GH_FILE]:{content:JSON.stringify(snapshot())}}})});
+  return created.id;
+}
+async function ghPull(){
+  const g=await gh('/gists/'+acct.gist);
+  const f=g.files&&g.files[GH_FILE]; if(!f)return false;
+  let text=f.content;
+  if(f.truncated&&f.raw_url){text=await (await fetch(f.raw_url)).text();}
+  try{mergeState(JSON.parse(text));return true;}catch(e){return false;}
+}
+async function ghPush(){ await gh('/gists/'+acct.gist,{method:'PATCH',body:JSON.stringify({files:{[GH_FILE]:{content:JSON.stringify(snapshot())}}})}); }
+/* ---- 공통 ---- */
+async function cloudPush(){ if(!acct||syncing)return; if(acct.kind==='db'&&!dbNs)return; syncing=true;
+  try{ if(acct.kind==='db')await acctDoc().set(snapshot()); else await ghPush(); setAcctStatus('동기화됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})); }
+  catch(e){ setAcctStatus('동기화 실패: '+(e.message||e.code||'')); } syncing=false; }
+async function cloudPull(){ if(!acct)return false;
+  try{ let ok=false; if(acct.kind==='db'){ if(!dbNs)return false; const snap=await acctDoc().get(); if(snap.exists){mergeState(snap.data());ok=true;} } else ok=await ghPull();
+    if(ok)localStorage.setItem(KEY,JSON.stringify(S)); return ok; }
+  catch(e){ setAcctStatus('불러오기 실패: '+(e.message||e.code||'')); } return false; }
+function cloudTouch(){ if(!acct)return; clearTimeout(cloudTimer); cloudTimer=setTimeout(cloudPush,1500); }
 function setAcctStatus(t){ const el=$('#acct-status'); if(el)el.textContent=t; }
+function rerenderAll(){ renderStats();renderPicker();renderPath();renderReview();renderGuide(); }
 function renderAcct(){
   const hasDb=!!dbNs;
-  $('#acct-form').hidden=!hasDb||!!acct; $('#acct-on').hidden=!hasDb||!acct; $('#acct-code').hidden=hasDb;
-  if(!hasDb){$('#acct-msg').textContent='';}
-  if(acct){$('#acct-name').textContent=acct.nick;}
+  $('#acct-form').hidden=!hasDb||!!acct;
+  $('#acct-gh').hidden=hasDb||!!acct;
+  $('#acct-on').hidden=!acct;
+  $('#acct-link').hidden=!(acct&&acct.kind==='gh');
+  $('#acct-code').hidden=hasDb||!!acct;
+  const lead=document.querySelector('#acct-card .lead');
+  if(lead)lead.textContent=hasDb?'닉네임과 PIN으로 계정을 만들면 다른 기기에서도 같은 진행 상황을 이어갑니다. PIN은 4자리 이상. 닉네임과 PIN을 아는 사람은 누구나 접근할 수 있으니 짐작하기 어려운 값을 쓰세요.':'GitHub 계정으로 로그인하면 휴대폰·노트북 어디서든 같은 진행 상황을 이어갑니다.';
+  if(acct)$('#acct-name').textContent=acct.nick;
   let chip=document.querySelector('.stat.acct');
-  if(acct&&hasDb){ if(!chip){chip=document.createElement('span');chip.className='stat acct';chip.title='로그인됨';document.querySelector('.stats').prepend(chip);} chip.textContent=acct.nick; }
+  if(acct){ if(!chip){chip=document.createElement('span');chip.className='stat acct';chip.title='로그인됨';document.querySelector('.stats').prepend(chip);} chip.textContent=acct.nick; }
   else if(chip)chip.remove();
+  $('#link-qr').hidden=true;$('#link-qr').innerHTML='';$('#link-copy').hidden=true;$('#link-show').textContent='연결 QR 보기';
 }
+function saveAcct(){ try{localStorage.setItem('jipgongbu_acct',JSON.stringify(acct));}catch(e){} }
+/* 닉네임+PIN (아티팩트) */
 async function login(nick,pin){
   nick=nick.trim();pin=pin.trim();
   if(nick.length<2){$('#acct-msg').textContent='닉네임은 2자 이상.';return;}
   if(pin.length<4){$('#acct-msg').textContent='PIN은 4자 이상.';return;}
   $('#acct-msg').textContent='확인 중…';
   const id=await sha256(nick.toLowerCase()+'\n'+pin);
-  acct={id,nick};
-  const existed=await cloudPull();
-  await cloudPush();
-  try{localStorage.setItem('jipgongbu_acct',JSON.stringify(acct));}catch(e){}
-  $('#acct-msg').textContent='';
-  renderAcct();renderStats();renderPicker();renderPath();renderReview();renderGuide();
+  acct={kind:'db',id,nick};
+  const existed=await cloudPull(); await cloudPush(); saveAcct();
+  $('#acct-msg').textContent=''; renderAcct(); rerenderAll();
   setAcctStatus(existed?'기존 계정의 기록을 합쳤어요':'새 계정을 만들었어요');
 }
+/* GitHub 토큰 (배포 사이트) */
+async function ghLogin(token){
+  token=(token||'').trim();
+  if(!/^(ghp_|github_pat_|gho_)[A-Za-z0-9_]{20,}$/.test(token)){$('#gh-msg').textContent='토큰 형식이 아니에요. ghp_ 로 시작하는 값을 붙여넣으세요.';return false;}
+  $('#gh-msg').textContent='GitHub에 연결하는 중…';
+  acct={kind:'gh',token,nick:''};
+  try{
+    const me=await gh('/user'); acct.nick=me.login;
+    acct.gist=await ghFindGist();
+    const existed=!acct.fresh&&await ghPull(); if(existed)localStorage.setItem(KEY,JSON.stringify(S)); delete acct.fresh;
+    await ghPush(); saveAcct();
+    $('#gh-msg').textContent=''; $('#gh-token').value='';
+    renderAcct(); rerenderAll(); setAcctStatus(existed?'GitHub에 저장된 기록을 합쳤어요':'GitHub에 새 저장소를 만들었어요');
+    return true;
+  }catch(e){ acct=null; $('#gh-msg').textContent=e.message||'로그인하지 못했어요.'; renderAcct(); return false; }
+}
+function connectLink(){ return location.origin+location.pathname+'#connect='+btoa(acct.token); }
+function qrSvg(text,cell){ if(typeof qrcode!=='function')return ''; const q=qrcode(0,'M'); q.addData(text); q.make(); return q.createSvgTag(cell||4,0); }
 $('#acct-login').addEventListener('click',()=>login($('#acct-nick').value,$('#acct-pin').value));
 $('#acct-pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('#acct-login').click();});
+$('#gh-token-link').addEventListener('click',()=>{window.open(GH_TOKEN_URL,'_blank','noopener');});
+$('#gh-login').addEventListener('click',()=>ghLogin($('#gh-token').value));
+$('#gh-token').addEventListener('keydown',e=>{if(e.key==='Enter')$('#gh-login').click();});
 $('#acct-logout').addEventListener('click',()=>{acct=null;try{localStorage.removeItem('jipgongbu_acct');}catch(e){}renderAcct();});
-$('#acct-sync').addEventListener('click',async()=>{setAcctStatus('동기화 중…');await cloudPull();await cloudPush();renderStats();renderPicker();renderPath();renderReview();});
-/* 동기화 코드 (db 없는 정적 버전) */
+$('#acct-sync').addEventListener('click',async()=>{setAcctStatus('동기화 중…');await cloudPull();await cloudPush();rerenderAll();});
+$('#link-show').addEventListener('click',()=>{const box=$('#link-qr');if(!box.hidden){box.hidden=true;box.innerHTML='';$('#link-copy').hidden=true;$('#link-show').textContent='연결 QR 보기';return;}box.innerHTML=qrSvg(connectLink(),4);box.hidden=false;$('#link-copy').hidden=false;$('#link-show').textContent='QR 숨기기';});
+$('#link-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(connectLink());$('#link-copy').textContent='복사됨 (본인에게만 보내세요)';setTimeout(()=>$('#link-copy').textContent='연결 링크 복사',2000);}catch(e){}});
+/* 동기화 코드 */
 $('#code-export').addEventListener('click',async()=>{const code=btoa(unescape(encodeURIComponent(JSON.stringify({state:S,guide:G,updatedAt:Date.now()}))));$('#code-box').value=code;try{await navigator.clipboard.writeText(code);$('#code-export').textContent='복사됨';setTimeout(()=>$('#code-export').textContent='내 진행 코드 복사',1500);}catch(e){}});
-$('#code-import').addEventListener('click',()=>{try{const obj=JSON.parse(decodeURIComponent(escape(atob($('#code-box').value.trim()))));mergeState(obj);save();renderStats();renderPicker();renderPath();renderReview();renderGuide();$('#code-import').textContent='불러왔어요';setTimeout(()=>$('#code-import').textContent='코드 붙여넣어 불러오기',1500);}catch(e){$('#code-import').textContent='코드가 올바르지 않아요';setTimeout(()=>$('#code-import').textContent='코드 붙여넣어 불러오기',2000);}});
-(async()=>{ await getDb(); try{const r=localStorage.getItem('jipgongbu_acct');if(r&&dbNs){acct=JSON.parse(r);await cloudPull();renderStats();renderPicker();renderPath();renderReview();}}catch(e){} renderAcct(); if(acct&&dbNs)setAcctStatus('동기화됨'); })();
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&acct&&dbNs)cloudPull().then(ok=>{if(ok){renderStats();renderPicker();renderPath();renderReview();}});});
+$('#code-import').addEventListener('click',()=>{try{const obj=JSON.parse(decodeURIComponent(escape(atob($('#code-box').value.trim()))));mergeState(obj);save();rerenderAll();$('#code-import').textContent='불러왔어요';setTimeout(()=>$('#code-import').textContent='코드 붙여넣어 불러오기',1500);}catch(e){$('#code-import').textContent='코드가 올바르지 않아요';setTimeout(()=>$('#code-import').textContent='코드 붙여넣어 불러오기',2000);}});
+(async()=>{
+  await getDb();
+  // 연결 링크(#connect=토큰)로 열린 경우 자동 로그인 후 주소에서 토큰 제거
+  const m=location.hash.match(/connect=([A-Za-z0-9+/=]+)/);
+  if(m&&!dbNs){ let tok='';try{tok=atob(m[1]);}catch(e){} history.replaceState(null,'',location.pathname+location.search); if(tok){ document.querySelector('.tabs button[data-tab="settings"]')?.click(); await ghLogin(tok); return; } }
+  try{const r=localStorage.getItem('jipgongbu_acct');if(r){const a=JSON.parse(r);if(!a.kind)a.kind='db';if((a.kind==='db'&&dbNs)||a.kind==='gh'){acct=a;await cloudPull();rerenderAll();}}}catch(e){}
+  renderAcct(); if(acct)setAcctStatus('동기화됨');
+})();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&acct)cloudPull().then(ok=>{if(ok)rerenderAll();});});
 
 renderStats();renderPicker();renderPath();renderReview();
 
@@ -516,3 +591,23 @@ window.addEventListener('appinstalled',()=>{if(installBtn)installBtn.hidden=true
 (function(){const sp=document.getElementById('splash');if(!sp)return;const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   let seen=false;try{seen=sessionStorage.getItem('jg_splash')==='1';sessionStorage.setItem('jg_splash','1');}catch(e){}
   setTimeout(()=>sp.classList.add('gone'),(seen||reduce)?0:900);})();
+
+/* ===================== 휴대폰 설치 안내 ===================== */
+(function(){
+  const SITE='https://yhjang0315-source.github.io/jagyeokgongbu/';
+  const sq=document.getElementById('site-qr'); if(sq&&typeof qrcode==='function')sq.innerHTML=qrSvg(SITE,4);
+  const standalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  const ua=navigator.userAgent||''; const isIOS=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&'ontouchend' in document); const isMobile=isIOS||/Android/.test(ua);
+  const inArtifact=!!(window.claude&&typeof window.claude.use==='function');
+  const banner=document.getElementById('install-banner'); if(!banner)return;
+  let dismissed=false;try{dismissed=localStorage.getItem('jg_ib_off')==='1';}catch(e){}
+  function show(){ if(standalone||dismissed||inArtifact||!location.protocol.startsWith('http'))return; banner.hidden=false; }
+  if(isIOS){ $('#ib-text').textContent='공유 버튼 → "홈 화면에 추가"로 앱처럼 설치'; $('#ib-go').textContent='방법 보기'; if(isMobile)show(); }
+  window.addEventListener('beforeinstallprompt',()=>{ show(); });
+  $('#ib-close').addEventListener('click',()=>{banner.hidden=true;try{localStorage.setItem('jg_ib_off','1');}catch(e){}});
+  $('#ib-go').addEventListener('click',async()=>{
+    if(installEvt){ installEvt.prompt(); const r=await installEvt.userChoice; installEvt=null; if(r&&r.outcome==='accepted')banner.hidden=true; return; }
+    if(isIOS){ const sh=document.createElement('div'); sh.className='ios-sheet'; sh.innerHTML='<div class="box"><h3>아이폰에 설치하기</h3><ol><li><b>Safari</b>로 이 페이지를 엽니다 (카카오톡 등 앱 안 브라우저면 오른쪽 아래 메뉴 → Safari로 열기)</li><li>아래쪽 <svg class="share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg> 공유 버튼</li><li><b>홈 화면에 추가</b> → 추가</li></ol><button class="big-btn">확인</button></div>'; sh.addEventListener('click',e=>{if(e.target===sh||e.target.closest('.big-btn'))sh.remove();}); document.body.appendChild(sh); return; }
+    document.querySelector('.tabs button[data-tab="settings"]')?.click(); document.getElementById('install-card')?.scrollIntoView({behavior:'smooth'});
+  });
+})();
